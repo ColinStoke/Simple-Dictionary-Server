@@ -1,11 +1,10 @@
 FLAGS := -g -Wall
-OBJECTS := server1.o server2.o server3.o 
+EXECUTABLES := client server1 server2 server3
 
-all: client
+all: $(EXECUTABLES)
 
-client: client.cpp
-	g++ $(FLAGS) client.cpp -o client
-
+$(EXECUTABLES): %: cpp/%.cpp
+	g++ $(FLAGS) $< -o $@
 
 clean:
-	rm -f client server1 server2 server3
+	rm -f $(EXECUTABLES)
