@@ -8,6 +8,8 @@
 #include <netinet/in.h>
 #include <netdb.h>
 #include <string.h>
+#include <poll.h>
+#include <signal.h>
 #define BUF_SIZE 4096	 /* block transfer size */
 using namespace std;
 
@@ -28,6 +30,7 @@ int main(int argc, char* argv[]){
 
     int connect_res;
 	int socket_fd;
+	int poll_ret;
 	char c_response[BUF_SIZE];	/* buffer for incoming file */
 	struct hostent *h;			/* info about server */
 	struct sockaddr_in channel; /* holds IP address */
@@ -41,8 +44,7 @@ int main(int argc, char* argv[]){
 
 	socket_fd = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP);
 
-	if (socket_fd < 0)
-	{
+	if (socket_fd < 0){
 		cout << "Socket call failed\n";
 		exit(-1);
 	}
@@ -54,11 +56,26 @@ int main(int argc, char* argv[]){
 	memcpy(&channel.sin_addr.s_addr, h->h_addr_list[0], h->h_length);
 	channel.sin_port = htons(port);
 	connect_res = connect(socket_fd, (struct sockaddr *)&channel, sizeof(channel));
-	if (connect_res < 0)
-	{
-		cout << "Connect failed\n";
+	if(connect_res < 0){
+		cout << "Error connecting to the socket\n";
 		exit(-1);
 	}
+
+	struct pollfd pfd = { .fd = socket_fd, .events = POLLOUT };
+	int ret = poll(&pfd, 1, 2000); // 1 second timeout
+
+	cout << ret << endl;
+	if(ret == 0){
+		cout << "Connection timed out\n";
+		close(socket_fd);
+		exit(-1);
+	}
+	else if(ret < 0){
+		cout << "Poll error\n";
+		close(socket_fd);
+		exit(-1);
+	}
+
     //now connected to server
     cout << "Connected to server\n\n";
 
@@ -68,9 +85,13 @@ int main(int argc, char* argv[]){
 		cout << "Please enter the word you need defined: ";
         cin >> word;
 
+		if(word == "/exit"){
+			break;
+		}
+
 		send(socket_fd, word.c_str(), word.size() + 1, 0);
 
-		while(recv(socket_fd, c_response, BUF_SIZE, MSG_WAITALL) == BUF_SIZE){
+		while(recv(socket_fd, c_response, BUF_SIZE, 0) == BUF_SIZE){
 			response.append(c_response);
 		}
 
@@ -78,7 +99,6 @@ int main(int argc, char* argv[]){
 
 		cout << "Server replied: " << response << "\n\n";
 
-		break;
 	}
 
 	close(socket_fd);
