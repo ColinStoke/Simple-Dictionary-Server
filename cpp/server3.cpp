@@ -18,16 +18,17 @@ using namespace std;
 
 void parseTsv(const string inFile, vector<pair<string, string>>& dict);
 
-volatile sig_atomic_t sigint_received = 0;
+volatile sig_atomic_t sigint_received = 0; //global var to control main loop before and after cntrl c
 
 void handleInterrupt(int sig){
 
-    sigint_received = 1;
+    sigint_received = 1; //signal loop end
 
 }
 
 int main(int argc, char* argv[]){
 
+    //sigint stuff
     struct sigaction sa = {
     handleInterrupt,
     };
@@ -37,32 +38,32 @@ int main(int argc, char* argv[]){
     exit(EXIT_FAILURE);
     }
 
-    vector<pair<string, string>> dict;
+    vector<pair<string, string>> dict; //dictionary for parsing
 
-    vector<int> socket_fds;
+    vector<int> socket_fds; //vector for holding all valid socket fds
 
     if(argc != 2){
         cout << "Incorrect usage. See the README for correct command line usage.\n";
         exit(-1);
     }
 
-    struct timeval selectTime;
+    struct timeval selectTime; //time struct for timeouts
 
-    int port = atoi(argv[1]);
-    int select_ret;
-    int accept_res;
-    int bytes_read;
-    int max_fd;
-    size_t position;
-    size_t chunk_size;
+    int port = atoi(argv[1]); //port num passed by command line
+    int select_ret; //return value for all select() statements
+    int accept_res; //fd from accept()
+    int bytes_read; //number of bytes read from the client word
+    int max_fd;     //max fd from all valid accepted fds for accept()
+    size_t position; //write position to keep track of how many bytes to write
+    size_t chunk_size; //int to keep track of the biggest number of bytes to send back to the client
 
-    string response;
+    string response; //full response back to the client
+    char client_word[BUF_SIZE]; //word the client sent to us
 
     cout << "Server1 Started On Port: " << port << endl;
 
     parseTsv("dictionary.tsv", dict);
 
-    char client_word[BUF_SIZE];
     int my_socket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
 
     struct sockaddr_in channel; /* holds IP address */
@@ -72,33 +73,37 @@ int main(int argc, char* argv[]){
     int bind_res = bind(my_socket, (struct sockaddr *)&channel, sizeof(channel));
     int listen_res = listen(my_socket, 1);
 
-    fd_set read_fds;
+    fd_set read_fds; //fd_set object for holding all fds to check with accept()
 
     while(!sigint_received){
 
-        max_fd = 0;
+        max_fd = 0; //reset vars
 
-        selectTime.tv_sec = 0;
+        //reset all select() objects
+        selectTime.tv_sec = 0; 
         selectTime.tv_usec = 1000; //.001 seconds
         FD_ZERO(&read_fds);
         FD_SET(my_socket, &read_fds);
 
-        select_ret = select(my_socket + 1, &read_fds, NULL, NULL, &selectTime);
+        select_ret = select(my_socket + 1, &read_fds, NULL, NULL, &selectTime); //probe socket for incoming connections
 
         if(select_ret == -1 && !sigint_received){
             cout << "Select() error during accept() check\n";
         }
         
+        //if we find connections, accept them all
         for(int i = 0; i < select_ret; i++){
             accept_res = accept(my_socket, 0, 0);
             cout << "Accepted new connection with socket " << accept_res << "\n\n";
             socket_fds.push_back(accept_res);
         }
 
+        //reset select() vars
         selectTime.tv_sec = 0;
         selectTime.tv_usec = 1000; //.001 seconds
         FD_ZERO(&read_fds);
 
+        //load fd_set with all valid sockets
         for(size_t i = 0; i < socket_fds.size(); i++){
 
             if(socket_fds[i] > max_fd){
@@ -111,15 +116,18 @@ int main(int argc, char* argv[]){
         response = "The server could not find the requested word. Please try another.\n";
         position = 0;
 
-        select_ret = select(max_fd + 1, &read_fds, NULL, NULL, &selectTime);
+        select_ret = select(max_fd + 1, &read_fds, NULL, NULL, &selectTime); //probe all valid sockets 
 
         if(select_ret == -1 && !sigint_received){
             cout << "Select() error during recv() check\n";
             continue;
         }
 
+        //check all sockets
         for(size_t i = 0; i < socket_fds.size(); i++){
-            if(FD_ISSET(socket_fds[i], &read_fds)){
+
+            //if the socket is in the list of sockets with data to read, read the data and respond
+            if(FD_ISSET(socket_fds[i], &read_fds)){ 
 
                 bytes_read = recv(socket_fds[i], client_word, BUF_SIZE, 0);
 
@@ -132,6 +140,7 @@ int main(int argc, char* argv[]){
 
                 cout << "Client socket " << socket_fds[i] << " sent: " << client_word << "\n\n";
 
+                //find defenition
                 for(size_t i = 0; i < dict.size(); i++){
                     if(strncmp(dict[i].first.c_str(), client_word, BUF_SIZE) == 0){
                         response = dict[i].second;
@@ -140,6 +149,7 @@ int main(int argc, char* argv[]){
 
                 cout << "Sending Reply: " << response << "\n\n";
 
+                //reply to client
                 while(position < response.size()){
                     chunk_size = min((size_t) BUF_SIZE, (response.size() + 1) - position);
                     send(socket_fds[i], response.c_str() + position, chunk_size, 0); 

@@ -3,6 +3,17 @@ Date: 5/2/2025
 
 # Project Description
 
+This project was created to fulfull the reuirements for the Socket Programming project in UMBC's CMSC481 Computer Networks class. 
+
+This project serves as an introduction to socket programming. The goal is to create 4 processes which are either dictionary servers (servers who have dictionary word information) or a client process which queries those servers. 
+
+The client process sends individual words to the server process and the server replies with the defenition of the word through berkeley sockets.
+
+Server1 is configured to only accept one client process at a time to communicate, keeping any other clients in a queue or denying them.
+
+Server2 is configured to fork a new server process whenever a client requests connection rather than block or refuse connection.
+
+Server3 is configured to use the select() syscall to probe the sockets and respond to client connection requests and client word defenition requests.
 
 # Instructions For Running
 

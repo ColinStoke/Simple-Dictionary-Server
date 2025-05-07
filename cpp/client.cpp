@@ -24,12 +24,11 @@ int main(int argc, char* argv[]){
 
     int port = atoi(argv[2]); //get port num
 
-    string word;
-    string defenition;
-	string response;
+    string word; //word for the server to define
+	string response; //server response
 
-    int connect_res;
-	int socket_fd;
+    int connect_res; //return of connect() function
+	int socket_fd; //fd of socket
 	char c_response[BUF_SIZE];	/* buffer for incoming file */
 	struct hostent *h;			/* info about server */
 	struct sockaddr_in channel; /* holds IP address */
@@ -60,7 +59,6 @@ int main(int argc, char* argv[]){
 		exit(-1);
 	}
 
-    //now connected to server
     cout << "Connected to server\n\n";
 
 	while (1){
@@ -73,8 +71,10 @@ int main(int argc, char* argv[]){
 			break;
 		}
 
+		//send the word to the server
 		send(socket_fd, word.c_str(), word.size() + 1, 0);
 
+		//revieve chunks of BUF_SIZE from the server until the amount of bytes recieved is less than that, indicating the server is done.
 		while(recv(socket_fd, c_response, BUF_SIZE, 0) == BUF_SIZE){
 			response.append(c_response);
 		}
