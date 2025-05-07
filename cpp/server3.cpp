@@ -91,6 +91,7 @@ int main(int argc, char* argv[]){
         
         for(int i = 0; i < select_ret; i++){
             accept_res = accept(my_socket, 0, 0);
+            cout << "Accepted new connection with socket " << accept_res << "\n\n";
             socket_fds.push_back(accept_res);
         }
 
