@@ -11,11 +11,30 @@
 #include <netinet/in.h>
 #include <netdb.h>
 #include <string.h>
+#include <fcntl.h>
+#include <signal.h>
+#define BUF_SIZE 4096	 /* block transfer size */
 using namespace std;
 
 void parseTsv(const string inFile, vector<pair<string, string>>& dict);
 
+void handleInterrupt(int sig){
+
+    return;
+
+}
+
 int main(int argc, char* argv[]){
+
+    struct sigaction sa = {
+    handleInterrupt,
+    SA_RESTART
+    };
+
+    if (sigaction(SIGINT, &sa, NULL) == -1){
+    perror("sigaction() failed");
+    exit(EXIT_FAILURE);
+    }
 
     vector<pair<string, string>> dict;
 
@@ -24,14 +43,90 @@ int main(int argc, char* argv[]){
         exit(-1);
     }
 
-    cout << "Server1 Started On Port: " << argv[1] << endl;
+    int port = atoi(argv[1]);
+    int socket_fd;
+    int bytes_read;
+    size_t position;
+    size_t chunk_size;
+
+    string response;
 
     parseTsv("dictionary.tsv", dict);
 
-    for(size_t i = 0; i < dict.size(); i++){
-        cout << dict[i].first << ' ' << dict[i].second << endl;
+    char client_word[BUF_SIZE];
+    int my_socket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+
+    struct sockaddr_in channel; /* holds IP address */
+    channel.sin_family = AF_INET;
+    channel.sin_addr.s_addr = htonl(INADDR_ANY); // addr = 0.0.0.0
+    channel.sin_port = htons(port);
+
+    int bind_res = bind(my_socket, (struct sockaddr *)&channel, sizeof(channel));
+
+    cout << "Server2 Started On Port: " << port << endl;
+
+    int listen_res = listen(my_socket, 10);
+
+    while(1){
+
+        cout << "Listening for new connections...\n\n";
+
+        socket_fd = accept(my_socket, 0, 0);
+
+        if(socket_fd < 0){
+            goto exit;
+        }
+
+        pid_t child = fork();
+
+        if(child < 0){
+            cout << "Fork error\n";
+            exit(-1);
+        }
+        else if(child == 0){
+            cout << "Detected connection. Forking process " << getpid() << "\n\n";
+            goto mainloop;
+        }
+        
+        sleep(1);
     }
 
+mainloop: 
+
+    while(1){
+
+        response = "The server could not find the requested word. Please try another.";
+        position = 0;
+
+        bytes_read = recv(socket_fd, client_word, BUF_SIZE, 0);
+
+        if(bytes_read <= 0){
+            cout << "Client disconnected\n";
+            close(socket_fd);
+            break;
+        }
+
+        cout << "Client socket " << socket_fd << " sent: " << client_word << "\n\n";
+
+        for(size_t i = 0; i < dict.size(); i++){
+            if(strncmp(dict[i].first.c_str(), client_word, BUF_SIZE) == 0){
+                response = dict[i].second;
+            }
+        }
+
+        cout << "Sending Reply: " << response << "\n\n";
+
+        while(position < response.size()){
+            chunk_size = min((size_t) BUF_SIZE, (response.size() + 1) - position);
+            send(socket_fd, response.c_str() + position, chunk_size, 0); 
+            position += BUF_SIZE;
+        }
+        
+    }
+
+exit:
+
+    close(socket_fd);
     return 0;
 }
 

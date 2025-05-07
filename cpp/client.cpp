@@ -30,7 +30,6 @@ int main(int argc, char* argv[]){
 
     int connect_res;
 	int socket_fd;
-	int poll_ret;
 	char c_response[BUF_SIZE];	/* buffer for incoming file */
 	struct hostent *h;			/* info about server */
 	struct sockaddr_in channel; /* holds IP address */
@@ -58,21 +57,6 @@ int main(int argc, char* argv[]){
 	connect_res = connect(socket_fd, (struct sockaddr *)&channel, sizeof(channel));
 	if(connect_res < 0){
 		cout << "Error connecting to the socket\n";
-		exit(-1);
-	}
-
-	struct pollfd pfd = { .fd = socket_fd, .events = POLLOUT };
-	int ret = poll(&pfd, 1, 2000); // 1 second timeout
-
-	cout << ret << endl;
-	if(ret == 0){
-		cout << "Connection timed out\n";
-		close(socket_fd);
-		exit(-1);
-	}
-	else if(ret < 0){
-		cout << "Poll error\n";
-		close(socket_fd);
 		exit(-1);
 	}
 
